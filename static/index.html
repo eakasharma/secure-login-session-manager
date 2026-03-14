@@ -1,1 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Login System</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 12px; background-color: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px; font-weight: bold; font-size: 16px; transition: background 0.3s; }
+        button:hover { background-color: #1a252f; }
+        .toggle-link { margin-top: 20px; color: #2980b9; cursor: pointer; text-decoration: underline; font-size: 0.9em; }
+        #message { margin-top: 20px; font-weight: bold; font-size: 0.9em; min-height: 20px; }
+        .error { color: #e74c3c; }
+        .success { color: #27ae60; }
+        .hidden { display: none; }
+        .data-row { text-align: left; margin: 10px 0; font-size: 14px; word-break: break-all; }
+    </style>
+</head>
+<body>
 
+<div class="container" id="auth-container">
+    <h2 id="form-title">Secure Authentication</h2>
+    <form id="auth-form">
+        <input type="email" id="email" placeholder="Email Address" required>
+        <input type="password" id="password" placeholder="Password (min 12 characters)" required minlength="12">
+        <button type="submit" id="submit-btn">Login</button>
+    </form>
+    <div class="toggle-link" id="toggle-btn">Need to provision an account? Register here.</div>
+    <div id="message"></div>
+</div>
+
+<div class="container hidden" id="dashboard-container">
+    <h2>Enterprise Dashboard</h2>
+    <p style="color: #27ae60; font-weight: bold;">Session Verified</p>
+    <div class="data-row"><strong>UUID:</strong> <span id="user-id"></span></div>
+    <div class="data-row"><strong>Email:</strong> <span id="user-email"></span></div>
+    <button id="logout-btn" style="background-color: #e74c3c; margin-top: 30px;">Terminate Session</button>
+</div>
+
+<script>
+    const authForm = document.getElementById('auth-form');
+    const formTitle = document.getElementById('form-title');
+    const submitBtn = document.getElementById('submit-btn');
+    const toggleBtn = document.getElementById('toggle-btn');
+    const messageDiv = document.getElementById('message');
+    const authContainer = document.getElementById('auth-container');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    
+    let isLogin = true;
+
+    toggleBtn.addEventListener('click', () => {
+        isLogin = !isLogin;
+        formTitle.textContent = isLogin ? 'Secure Authentication' : 'Account Registration';
+        submitBtn.textContent = isLogin ? 'Login' : 'Register';
+        toggleBtn.textContent = isLogin ? 'Need to provision an account? Register here.' : 'Already have an account? Login here.';
+        messageDiv.textContent = '';
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        messageDiv.textContent = 'Authenticating...';
+        messageDiv.className = '';
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const endpoint = isLogin ? '/login' : '/register';
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (!isLogin) {
+                    messageDiv.textContent = 'Account provisioned successfully. Proceed to login.';
+                    messageDiv.className = 'success';
+                    isLogin = true;
+                    formTitle.textContent = 'Secure Authentication';
+                    submitBtn.textContent = 'Login';
+                    toggleBtn.textContent = 'Need to provision an account? Register here.';
+                } else {
+                    messageDiv.textContent = 'Authentication successful.';
+                    messageDiv.className = 'success';
+                    checkSession(); 
+                }
+            } else {
+                messageDiv.textContent = Array.isArray(data.detail) ? data.detail[0].msg : data.detail;
+                messageDiv.className = 'error';
+            }
+        } catch (error) {
+            messageDiv.textContent = 'Connection to authentication server failed.';
+            messageDiv.className = 'error';
+        }
+    });
+
+    async function checkSession() {
+        try {
+            const response = await fetch('/me');
+            if (response.ok) {
+                const userData = await response.json();
+                authContainer.classList.add('hidden');
+                dashboardContainer.classList.remove('hidden');
+                document.getElementById('user-id').textContent = userData.id;
+                document.getElementById('user-email').textContent = userData.email;
+            } else {
+                authContainer.classList.remove('hidden');
+                dashboardContainer.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Session validation failed');
+        }
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+        try {
+            await fetch('/logout', { method: 'POST' });
+            checkSession();
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+            messageDiv.textContent = 'Session terminated securely.';
+            messageDiv.className = 'success';
+        } catch (error) {
+            console.error('Logout failed');
+        }
+    });
+
+    checkSession();
+</script>
+</body>
+</html>
